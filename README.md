@@ -1,4 +1,4 @@
-# The Well-Kept Habitat — Launch Event WebSite
+# The Well-Kept Habitat — Launch Event Website
 
 Static, mobile-first landing page for `launch.wellkepthabitat.com`, designed for guests arriving from the Rise & Shine Social QR code.
 
