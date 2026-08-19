@@ -5,6 +5,36 @@ function clean(value, max = 240) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
+async function notify(env, data) {
+  if (!env.RSVP_EMAIL) return;
+  const attendance = { yes: 'Yes, attending', no: 'No, not attending', maybe: 'Maybe' }[data.attending];
+  const text = [
+    'A new Rise & Shine Social RSVP was submitted.', '',
+    `Name: ${data.firstName} ${data.lastName}`,
+    `Email: ${data.email}`,
+    `Attendance: ${attendance}`,
+    `Party size: ${data.partySize}`,
+    `Guest names: ${data.guestNames || 'None provided'}`,
+    `Bringing children: ${data.children || 'Not specified'}`,
+    `Dietary preferences: ${data.dietaryNotes || 'None provided'}`,
+    `Interests: ${data.interests.length ? data.interests.join(', ') : 'None selected'}`,
+    `Email updates opt-in: ${data.emailOptIn ? 'Yes' : 'No'}`,
+    `Submitted: ${data.now}`
+  ].join('\n');
+
+  try {
+    await env.RSVP_EMAIL.send({
+      to: 'sc@ironarborllc.com',
+      from: 'notifications@wellkepthabitat.com',
+      replyTo: data.email,
+      subject: `[TWKH RSVP] ${data.attending.toUpperCase()} — ${data.firstName} ${data.lastName}`,
+      text
+    });
+  } catch (error) {
+    console.error('RSVP notification failed', error);
+  }
+}
+
 export async function onRequestPost(context) {
   try {
     const request = context.request;
@@ -14,9 +44,7 @@ export async function onRequestPost(context) {
     }
 
     const body = await request.json();
-    if (clean(body.website, 200)) {
-      return Response.json({ ok: true });
-    }
+    if (clean(body.website, 200)) return Response.json({ ok: true });
 
     const firstName = clean(body.firstName, 60);
     const lastName = clean(body.lastName, 60);
@@ -37,12 +65,10 @@ export async function onRequestPost(context) {
     }
 
     const db = context.env.TWKH_DB;
-    if (!db) {
-      return Response.json({ error: 'RSVP storage is not configured yet.' }, { status: 503 });
-    }
+    if (!db) return Response.json({ error: 'RSVP storage is not configured yet.' }, { status: 503 });
 
     const now = new Date().toISOString();
-    const rsvp = db.prepare(`
+    await db.prepare(`
       INSERT INTO rsvps (
         created_at, updated_at, first_name, last_name, email, attending,
         party_size, guest_names, bringing_children, dietary_notes,
@@ -64,9 +90,7 @@ export async function onRequestPost(context) {
       now, now, firstName, lastName, email, attending,
       partySize, guestNames, children, dietaryNotes,
       emailOptIn, JSON.stringify(interests), source
-    );
-
-    await rsvp.run();
+    ).run();
 
     if (emailOptIn) {
       await db.prepare(`
@@ -77,6 +101,11 @@ export async function onRequestPost(context) {
           source = excluded.source
       `).bind(now, now, email, 'rsvp-opt-in').run();
     }
+
+    await notify(context.env, {
+      firstName, lastName, email, attending, partySize, guestNames, children,
+      dietaryNotes, emailOptIn: Boolean(emailOptIn), interests, now
+    });
 
     return Response.json({ ok: true });
   } catch (error) {
