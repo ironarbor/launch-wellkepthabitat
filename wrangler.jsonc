@@ -14,5 +14,12 @@
       "database_name": "twkh-launch",
       "database_id": "6374dd0c-91ca-44b2-a628-c1e6bf16a724"
     }
+  ],
+  "send_email": [
+    {
+      "name": "RSVP_EMAIL",
+      "destination_address": "sc@ironarborllc.com",
+      "allowed_sender_addresses": ["notifications@wellkepthabitat.com"]
+    }
   ]
 }
